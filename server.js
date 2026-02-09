@@ -2,27 +2,20 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
-// 🔴 مهم: تحميل متغيرات البيئة أولاً
 require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// 🔴 تهيئة Firebase (إذا كانت متغيرات Firebase موجودة)
 let db = null;
 let admin = null;
 
-if (process.env.FIREBASE_PROJECT_ID && 
-    process.env.FIREBASE_PRIVATE_KEY && 
-    process.env.FIREBASE_CLIENT_EMAIL) {
-  
+if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
   try {
     admin = require('firebase-admin');
-    
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -30,21 +23,19 @@ if (process.env.FIREBASE_PROJECT_ID &&
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       }),
     });
-    
     db = admin.firestore();
-    console.log('✅ Firebase initialized successfully');
+    console.log('✅ Firebase initialized');
   } catch (error) {
-    console.error('❌ Firebase initialization failed:', error.message);
+    console.error('❌ Firebase error:', error.message);
   }
-} else {
-  console.log('⚠️ Firebase not configured - running without Firestore');
 }
 
-// 🔴 التحقق من COLAB_API_URL
 const COLAB_API_URL = process.env.COLAB_API_URL;
-if (!COLAB_API_URL) {
-  console.error('❌ ERROR: COLAB_API_URL is not defined in environment variables');
-  console.error('Please set COLAB_API_URL in Render Environment Variables');
+const MOCK_MODE = !COLAB_API_URL; // ⬅️ تفعيل المحاكاة إذا لم يكن هناك COLAB_API_URL
+
+if (MOCK_MODE) {
+  console.log('⚠️  MOCK MODE ENABLED - No Colab connection');
+  console.log('⚠️  Server will simulate training responses');
 } else {
   console.log('✅ COLAB_API_URL configured:', COLAB_API_URL);
 }
@@ -53,20 +44,20 @@ if (!COLAB_API_URL) {
 // Routes
 // ============================================
 
-// الصفحة الرئيسية - للتحقق من عمل السيرفر
 app.get('/', (req, res) => {
   res.json({
-    message: 'RVC Voice API Server is running!',
+    message: 'RVC API Server is running',
     status: 'active',
-    timestamp: new Date().toISOString(),
-    firebase_connected: db !== null,
-    colab_configured: COLAB_API_URL !== undefined
+    mock_mode: MOCK_MODE,
+    timestamp: new Date().toISOString()
   });
 });
 
-// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({ 
+    status: 'ok',
+    mock_mode: MOCK_MODE 
+  });
 });
 
 // ============================================
@@ -74,15 +65,6 @@ app.get('/health', (req, res) => {
 // ============================================
 app.post('/api/train', async (req, res) => {
   try {
-    // 🔴 التحقق من COLAB_API_URL
-    if (!COLAB_API_URL) {
-      return res.status(500).json({
-        success: false,
-        error: 'Server configuration error: COLAB_API_URL not set'
-      });
-    }
-
-    // استقبال جميع البيانات من Flutter
     const {
       exp_dir1, trainset_dir4, sr2, if_f0_3, spk_id5, np7,
       f0method8, save_epoch10, total_epoch11, batch_size12,
@@ -99,15 +81,62 @@ app.post('/api/train', async (req, res) => {
       });
     }
 
-    console.log('📥 RVC Training Request:');
-    console.log('- Voice Name:', exp_dir1);
-    console.log('- Audio URL:', trainset_dir4);
-    console.log('- Sample Rate:', sr2);
-    console.log('- Total Epochs:', total_epoch11);
-    console.log('- User ID:', user_id);
+    console.log('📥 Training request:', {
+      voiceName: exp_dir1,
+      audioUrl: trainset_dir4,
+      userId: user_id,
+      mode: MOCK_MODE ? 'MOCK' : 'REAL'
+    });
 
-    // 🔴 إرسال إلى Colab
-    console.log('🚀 Sending request to Colab...');
+    // 🔴 وضع المحاكاة - إذا لم يكن هناك Colab
+    if (MOCK_MODE) {
+      console.log('🎭 Simulating training process...');
+      
+      // محاكاة تأخير التدريب (5 ثواني)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      const mockResult = {
+        success: true,
+        message: 'Training completed (MOCK MODE)',
+        model_path: `models/${exp_dir1}/${exp_dir1}_e200.pth`,
+        index_path: `models/${exp_dir1}/added_IVF1024_Flat_nprobe_1_${exp_dir1}_v2.index`,
+        sample_rate: sr2 || 40000,
+        epochs: total_epoch11 || 200,
+        training_time: '45.2 seconds (mock)',
+        mock: true
+      };
+
+      console.log('✅ Mock training completed');
+
+      // حفظ في Firestore إذا كان متاحاً
+      if (db && admin) {
+        try {
+          await db.collection('exp_dir').doc(user_id)
+            .collection('voices').doc(exp_dir1)
+            .set({
+              userId: user_id,
+              exp_dir: exp_dir1,
+              audioUrl: trainset_dir4,
+              status: 'completed',
+              result: mockResult,
+              mock: true,
+              completedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          console.log('✅ Saved to Firestore');
+        } catch (dbError) {
+          console.error('❌ Firestore error:', dbError.message);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'Training completed (MOCK MODE)',
+        data: mockResult
+      });
+    }
+
+    // 🔴 وضع حقيقي - إرسال لـ Colab
+    console.log('🚀 Sending to Colab...');
     
     const trainingResponse = await axios.post(`${COLAB_API_URL}/train`, {
       exp_dir1, trainset_dir4, sr2, if_f0_3, spk_id5, np7,
@@ -116,15 +145,12 @@ app.post('/api/train', async (req, res) => {
       if_cache_gpu17, if_save_every_weights18, version19, gpus_rmvpe,
       user_id
     }, {
-      timeout: 600000, // 10 دقائق للتدريب
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      timeout: 600000,
+      headers: { 'Content-Type': 'application/json' }
     });
 
-    console.log('✅ Training completed:', trainingResponse.data);
+    console.log('✅ Colab response received');
 
-    // 🔴 حفظ النتيجة في Firestore (إذا كان متصلاً)
     if (db && admin) {
       try {
         await db.collection('exp_dir').doc(user_id)
@@ -137,10 +163,8 @@ app.post('/api/train', async (req, res) => {
             result: trainingResponse.data,
             completedAt: admin.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
-        console.log('✅ Result saved to Firestore');
       } catch (dbError) {
-        console.error('❌ Firestore save failed:', dbError.message);
-        // لا نوقف الرد إذا فشل Firestore
+        console.error('❌ Firestore error:', dbError.message);
       }
     }
 
@@ -152,17 +176,6 @@ app.post('/api/train', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Training error:', error.message);
-    
-    // تفاصيل أكثر عن الخطأ
-    if (error.response) {
-      console.error('Colab response error:', error.response.data);
-      return res.status(500).json({
-        success: false,
-        error: 'Colab server error',
-        details: error.response.data
-      });
-    }
-    
     res.status(500).json({
       success: false,
       error: error.message
@@ -171,35 +184,37 @@ app.post('/api/train', async (req, res) => {
 });
 
 // ============================================
-// RVC Conversion Endpoint (Inference)
+// RVC Conversion Endpoint
 // ============================================
 app.post('/api/convert', async (req, res) => {
   try {
-    if (!COLAB_API_URL) {
-      return res.status(500).json({
-        success: false,
-        error: 'Server configuration error: COLAB_API_URL not set'
-      });
-    }
-
     const { audio_url, model_name, pitch, user_id } = req.body;
 
     if (!audio_url || !model_name) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: audio_url or model_name'
+        error: 'Missing required fields'
       });
     }
 
-    console.log('🎵 Conversion request:', model_name);
+    // وضع المحاكاة
+    if (MOCK_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      return res.json({
+        success: true,
+        message: 'Conversion completed (MOCK MODE)',
+        output_url: audio_url, // يرجع نفس الصوت في الوضع التجريبي
+        mock: true
+      });
+    }
 
+    // وضع حقيقي
     const response = await axios.post(`${COLAB_API_URL}/convert`, {
       audio_url, model_name, pitch, user_id
     }, {
-      timeout: 120000, // 2 دقيقة
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      timeout: 120000,
+      headers: { 'Content-Type': 'application/json' }
     });
 
     res.json({
@@ -216,26 +231,13 @@ app.post('/api/convert', async (req, res) => {
   }
 });
 
-// ============================================
-// Error Handling
-// ============================================
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error'
-  });
-});
-
-// ============================================
-// Start Server
-// ============================================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log('=================================');
-  console.log(`🚀 RVC Voice API Server running on port ${PORT}`);
-  console.log(`🔗 URL: https://rvc-voice-api.onrender.com`);
+  console.log(`🚀 RVC Voice API Server`);
+  console.log(`🌐 URL: https://rvc-voice-api.onrender.com`);
   console.log(`📊 Health: https://rvc-voice-api.onrender.com/health`);
+  console.log(MOCK_MODE ? `🎭 MODE: MOCK (No Colab)` : `⚡ MODE: REAL (With Colab)`);
   console.log('=================================');
 });
