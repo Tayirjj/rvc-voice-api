@@ -12,26 +12,35 @@ CORS(app)
 # ============================================
 # Firebase Initialization
 # ============================================
+# ============================================
+# Firebase Initialization
+# ============================================
 db = None
 
 try:
-    firebase_project_id = os.environ.get('FIREBASE_PROJECT_ID')
-    firebase_private_key = os.environ.get('FIREBASE_PRIVATE_KEY')
-    firebase_client_email = os.environ.get('FIREBASE_CLIENT_EMAIL')
+    # استخدام متغير واحد يحتوي على كل بيانات Service Account
+    firebase_service_account = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
     
-    if all([firebase_project_id, firebase_private_key, firebase_client_email]):
-        cred = credentials.Certificate({
-            "type": "service_account",
-            "project_id": firebase_project_id,
-            "private_key": firebase_private_key.replace('\\n', '\n'),
-            "client_email": firebase_client_email,
-        })
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firebase initialized")
-    else:
-        print("⚠️ Firebase not configured (missing environment variables)")
+    if firebase_service_account:
+        # تحويل النص إلى JSON
+        service_account_info = json.loads(firebase_service_account)
         
+        # التحقق من وجود البيانات المطلوبة
+        required_fields = ['type', 'project_id', 'private_key', 'client_email', 'token_uri']
+        missing_fields = [field for field in required_fields if field not in service_account_info]
+        
+        if missing_fields:
+            print(f"⚠️ Firebase config missing fields: {missing_fields}")
+        else:
+            cred = credentials.Certificate(service_account_info)
+            firebase_admin.initialize_app(cred)
+            db = firestore.client()
+            print("✅ Firebase initialized successfully")
+    else:
+        print("⚠️ FIREBASE_SERVICE_ACCOUNT environment variable not found")
+        
+except json.JSONDecodeError as je:
+    print(f"❌ Firebase config is not valid JSON: {je}")
 except Exception as e:
     print(f"❌ Firebase initialization error: {e}")
 
