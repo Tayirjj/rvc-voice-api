@@ -280,13 +280,7 @@ def preprocess():
             }), 503
 
         # إعداد البيانات للإرسال إلى Colab
-        colab_payload = {
-            "trainset_dir": trainset_dir,
-            "exp_dir":      exp_dir,
-            "sr":           sr,
-            "n_p":          int(n_p),
-            "user_id":      user_id
-        }
+        colab_payload = data
 
         print(f"📤 Sending to Colab: {COLAB_URL}/preprocess")
         print(f"   Payload: {json.dumps(colab_payload, indent=2)}")
@@ -396,11 +390,7 @@ def train():
                 "error": "Colab is not connected. Please run the Colab notebook first."
             }), 503
 
-        colab_payload = {
-            "exp_dir1":      exp_dir1,
-            "trainset_dir4": trainset_dir4,
-            "user_id":       user_id
-        }
+        colab_payload = data
 
         print(f"📤 Sending to Colab: {COLAB_URL}/train")
         
