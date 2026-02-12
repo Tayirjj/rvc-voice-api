@@ -455,31 +455,42 @@ def train():
 
 @app.route('/api/convert', methods=['POST'])
 def convert():
-    """
-    تحويل الصوت باستخدام النموذج المدرب
-    (حالياً في وضع الاختبار)
-    """
+    global COLAB_URL
+
     try:
         data = request.get_json()
-        print(f"\n📥 Conversion request:")
+        print(f"\n📥 Convert request received:")
         print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
-        
-        return jsonify({
-            "success": True,
-            "message": "Conversion endpoint received (TEST MODE)",
-            "data": {
-                **data,
-                "timestamp": datetime.now().isoformat()
-            }
-        })
-        
-    except Exception as e:
-        print(f"❌ Error in convert: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
 
+        if not COLAB_URL:
+            return jsonify({
+                "success": False,
+                "error": "Colab is not connected."
+            }), 503
+
+        colab_response = requests.post(
+            f"{COLAB_URL}/convert",
+            json=data,
+            timeout=300
+        )
+
+        colab_data = colab_response.json()
+        print(f"📨 Colab response: {json.dumps(colab_data, indent=2)}")
+
+        return jsonify({
+            "success": colab_data.get("success", False),
+            "message": "Convert request processed",
+            "data":    colab_data,
+            "timestamp": datetime.now().isoformat()
+        }), colab_response.status_code
+
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "Colab timed out"}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "Cannot connect to Colab"}), 503
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================
 # Error Handlers
