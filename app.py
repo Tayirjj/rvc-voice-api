@@ -421,6 +421,23 @@ def train():
                   .set(doc_data, merge=True)
                   
                 print("✅ Saved to Firestore")
+                
+                # ✅ حفظ في القائمة العامة بعد نجاح التدريب
+                if colab_data.get("success"):
+                    try:
+                        db.collection('training_voices').add({
+                            'voiceName': exp_dir1,
+                            'modelPath': f'/content/RVC/RVC1006AMD_Intel1/assets/weights/{exp_dir1}.pth',
+                            'indexPath': f'/content/RVC/RVC1006AMD_Intel1/logs/{exp_dir1}',
+                            'createdBy': user_id,
+                            'createdAt': firestore.SERVER_TIMESTAMP,
+                            'isPublic': True,
+                            'downloads': 0,
+                        })
+                        print(f"✅ Added {exp_dir1} to training_voices collection")
+                    except Exception as e:
+                        print(f"⚠️ Could not add to training_voices: {e}")
+                        
             except Exception as db_error:
                 print(f"❌ Firestore error: {db_error}")
 
@@ -462,15 +479,95 @@ def convert():
         print(f"\n📥 Convert request received:")
         print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
 
+        # ✅ استخراج voice_name من الطلب
+        voice_name = data.get('file_index2')  # Flutter يرسل اسم الصوت هنا
+        user_id = data.get('user_id')
+        
+        if not voice_name:
+            return jsonify({
+                "success": False,
+                "error": "voice_name (file_index2) is required"
+            }), 400
+
+        # ✅ البحث في Firestore عن معلومات الصوت
+        model_path = None
+        index_path = ""
+        
+        if db:
+            try:
+                # البحث في training_voices (الأصوات المشتركة)
+                voice_docs = db.collection('training_voices')\
+                              .where('voiceName', '==', voice_name)\
+                              .limit(1)\
+                              .get()
+                
+                if voice_docs:
+                    voice_data = voice_docs[0].to_dict()
+                    model_path = voice_data.get('modelPath')
+                    index_path = voice_data.get('indexPath', '')
+                    print(f"✅ Found in training_voices: {voice_name}")
+                else:
+                    # إذا لم يوجد في training_voices، ابحث في الأصوات المخصصة للمستخدم
+                    custom_voice = db.collection('exp_dir')\
+                                    .document(user_id)\
+                                    .collection('voices')\
+                                    .document(voice_name)\
+                                    .get()
+                    
+                    if custom_voice.exists:
+                        custom_data = custom_voice.to_dict()
+                        exp_dir = custom_data.get('exp_dir', voice_name)
+                        model_path = f'/content/RVC/RVC1006AMD_Intel1/assets/weights/{exp_dir}.pth'
+                        index_path = f'/content/RVC/RVC1006AMD_Intel1/logs/{exp_dir}'
+                        print(f"✅ Found in user voices: {voice_name}")
+                    else:
+                        # صوت افتراضي
+                        model_path = f'/content/RVC/RVC1006AMD_Intel1/assets/weights/{voice_name}.pth'
+                        index_path = f'/content/RVC/RVC1006AMD_Intel1/logs/{voice_name}'
+                        print(f"ℹ️ Using default path: {voice_name}")
+                        
+            except Exception as db_error:
+                print(f"⚠️ Firestore error: {db_error}")
+                # استخدام المسار الافتراضي
+                model_path = f'/content/RVC/RVC1006AMD_Intel1/assets/weights/{voice_name}.pth'
+                index_path = f'/content/RVC/RVC1006AMD_Intel1/logs/{voice_name}'
+        else:
+            # إذا لم يكن Firebase متصل
+            model_path = f'/content/RVC/RVC1006AMD_Intel1/assets/weights/{voice_name}.pth'
+            index_path = f'/content/RVC/RVC1006AMD_Intel1/logs/{voice_name}'
+
         if not COLAB_URL:
             return jsonify({
                 "success": False,
                 "error": "Colab is not connected."
             }), 503
 
+        # ✅ إعداد البيانات للإرسال إلى Colab
+        colab_payload = {
+            'spk_item': data.get('spk_item', 0),
+            'input_audio0': data.get('input_audio0'),
+            'vc_transform0': data.get('vc_transform0', 0),
+            'f0_file': data.get('f0_file'),
+            'f0method0': data.get('f0method0', 'rmvpe'),
+            'file_index1': '',  # فارغ
+            'file_index2': model_path,  # ✅ المسار الكامل للنموذج
+            'index_path': index_path,   # ✅ مسار index
+            'index_rate1': data.get('index_rate1', 0.75),
+            'filter_radius0': data.get('filter_radius0', 3),
+            'resample_sr0': data.get('resample_sr0', 0),
+            'rms_mix_rate0': data.get('rms_mix_rate0', 0.25),
+            'protect0': data.get('protect0', 0.33),
+            'user_id': user_id,
+            'input_type': data.get('input_type', 'file'),
+        }
+        
+        print(f"📤 Sending to Colab:")
+        print(f"   Model: {model_path}")
+        print(f"   Index: {index_path}")
+
         colab_response = requests.post(
             f"{COLAB_URL}/convert",
-            json=data,
+            json=colab_payload,
             timeout=300
         )
 
@@ -480,7 +577,7 @@ def convert():
         return jsonify({
             "success": colab_data.get("success", False),
             "message": "Convert request processed",
-            "data":    colab_data,
+            "data": colab_data,
             "timestamp": datetime.now().isoformat()
         }), colab_response.status_code
 
@@ -491,7 +588,6 @@ def convert():
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
 # ============================================
 # Error Handlers
 # ============================================
