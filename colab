@@ -1,0 +1,568 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+import zipfile
+import os
+import shutil
+
+# ✏️ غيّر هذا المسار لمسار ملفك في Drive
+zip_path = '/content/drive/MyDrive/RVC.zip'
+
+# المجلد الذي سيتم فك الضغط فيه
+extract_to = '/content'
+
+# إنشاء المجلد إذا لم يكن موجوداً
+os.makedirs(extract_to, exist_ok=True)
+
+# فك الضغط
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_to)
+
+print("✅ تم فك الضغط بنجاح!")
+print(f"📁 الملفات موجودة في: {extract_to}")
+
+
+!pip install flask flask-ngrok pyngrok requests av -q
+
+
+# ============================================================
+# CELL 3 - الإعدادات + جميع الـ imports المطلوبة
+# ============================================================
+
+# ✅ أولاً: المسارات والمتغيرات
+import os
+import sys
+
+# 🔑 رابط السيرفر الخاص بك
+FLASK_SERVER_URL = "https://rvc-voice-api.onrender.com"
+
+# مسار مشروع RVC
+RVC_PATH = "/content/RVC/RVC1006AMD_Intel1"
+PYTHON_CMD = "/usr/local/bin/python"
+
+now_dir = RVC_PATH  # ← تعريف now_dir أولاً
+
+# ✅ ثانياً: إضافة المسار بعد تعريف now_dir
+sys.path.insert(0, now_dir)
+
+# ✅ ثالثاً: باقي الاستيرادات
+import threading
+import time
+from subprocess import Popen
+from time import sleep
+import requests as req
+
+sr_dict = {
+    "32k": 32000,
+    "40k": 40000,
+    "48k": 48000,
+}
+
+# ✅ دالة مساعدة مطلوبة لـ Popen
+def if_done(done, p):
+    p.wait()
+    done[0] = True
+
+# التحقق من وجود المسار
+if os.path.exists(RVC_PATH):
+    print(f"✅ RVC Path found: {RVC_PATH}")
+else:
+    print(f"❌ RVC Path NOT found: {RVC_PATH}")
+    print(f"   المجلدات الموجودة في /content/RVC/:")
+    try:
+        print(os.listdir("/content/RVC/"))
+    except:
+        print("   /content/RVC/ غير موجود!")
+
+print(f"✅ Config set | Server: {FLASK_SERVER_URL}")
+print(f"✅ All imports loaded successfully")
+
+# ============================================================
+# CELL 5A - تعريف الدوال و Flask (لا يُشغَّل شيء هنا)
+# ============================================================
+
+from flask import Flask, request, jsonify
+from pyngrok import ngrok
+import threading
+import requests as req
+import time
+import os
+import logging
+from subprocess import Popen
+from time import sleep
+
+logger = logging.getLogger(__name__)
+colab_app = Flask("colab_server")
+
+
+# ─────────────────────────────────────────────
+# دالة مساعدة: انتظار انتهاء عملية واحدة
+# ─────────────────────────────────────────────
+def if_done(done, p):
+    p.wait()
+    done[0] = True
+
+def if_done_multi(done, ps):
+    for p in ps:
+        p.wait()
+    done[0] = True
+
+
+
+
+
+# ─────────────────────────────────────────────
+# STEP 1: preprocess_dataset
+# ─────────────────────────────────────────────
+def preprocess_dataset(trainset_dir, exp_dir, sr, n_p):
+    sr = sr_dict[sr]
+    
+
+    os.makedirs("%s/logs/%s" % (now_dir, exp_dir), exist_ok=True)
+    open("%s/logs/%s/preprocess.log" % (now_dir, exp_dir), "w").close()
+
+    per = 3.0
+    cmd = '"%s" "%s/infer/modules/train/preprocess.py" "%s" %s %s "%s/logs/%s" %s %.1f' % (
+        PYTHON_CMD, now_dir,
+        trainset_dir, sr, n_p,
+        now_dir, exp_dir,
+        False, per,
+    )
+    logger.info(cmd)
+    print(f"🚀 [Preprocess] Running: {cmd}")
+
+    p = Popen(cmd, shell=True, cwd=now_dir)
+    done = [False]
+    threading.Thread(target=if_done, args=(done, p)).start()
+
+    while True:
+        with open("%s/logs/%s/preprocess.log" % (now_dir, exp_dir), "r") as f:
+            current_log = f.read()
+        print(current_log[-300:] if len(current_log) > 300 else current_log, end='\r')
+        sleep(1)
+        if done[0]:
+            break
+
+    with open("%s/logs/%s/preprocess.log" % (now_dir, exp_dir), "r") as f:
+        log = f.read()
+    logger.info(log)
+    print("\n✅ Preprocess DONE!")
+    return log
+
+
+# ─────────────────────────────────────────────
+# STEP 2: extract_f0_feature
+# ─────────────────────────────────────────────
+def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, gpus_rmvpe):
+    """
+    نسخة مبسطة - تنشئ فقط ملف .pth فارغ للاختبار
+    """
+    print(f"\n🔄 Creating dummy model file for: {exp_dir}")
+    
+    # إنشاء مجلد logs إذا لم يكن موجوداً
+    os.makedirs(f"{now_dir}/logs/{exp_dir}", exist_ok=True)
+    
+    # إنشاء ملف log فارغ
+    log_path = f"{now_dir}/logs/{exp_dir}/extract_f0_feature.log"
+    with open(log_path, "w") as f:
+        f.write(f"Dummy training log for {exp_dir}\n")
+        f.write("This is a test model - no actual training performed\n")
+    
+    # ✅ إنشاء ملف .pth فارغ في مجلد weights
+    weights_dir = f"{now_dir}/assets/weights"
+    os.makedirs(weights_dir, exist_ok=True)
+    
+    model_file_path = f"{weights_dir}/{exp_dir}.pth"
+    
+    # إنشاء ملف فارغ
+    with open(model_file_path, "wb") as f:
+        f.write(b"")  # ملف فارغ
+    
+    file_size = os.path.getsize(model_file_path)
+    print(f"✅ Model file created: {model_file_path}")
+    print(f"   Size: {file_size} bytes")
+    
+    # ✅ اختياري: إنشاء مجلد index فارغ
+    index_dir = f"{now_dir}/logs/{exp_dir}"
+    os.makedirs(index_dir, exist_ok=True)
+    
+    index_file_path = f"{index_dir}/added_IVF0_Flat_nprobe_1_{exp_dir}_{version19}.index"
+    with open(index_file_path, "wb") as f:
+        f.write(b"")
+    
+    print(f"✅ Index file created: {index_file_path}")
+    
+    # إرجاع log بسيط
+    final_log = f"""
+    ========================================
+    Dummy Training Completed
+    ========================================
+    Model: {exp_dir}
+    Version: {version19}
+    Model Path: {model_file_path}
+    Index Path: {index_file_path}
+    Status: ✅ Files created successfully
+    ========================================
+    """
+    
+    print(final_log)
+    return final_log
+
+
+# ─────────────────────────────────────────────
+# Flask Endpoints
+# ─────────────────────────────────────────────
+
+@colab_app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "source": "colab"})
+
+
+@colab_app.route('/train', methods=['POST'])
+def handle_train():
+    """
+    يستقبل طلب من Flutter/Backend وينفذ:
+    1. تحميل الصوت من Firebase
+    2. preprocess_dataset
+    3. extract_f0_feature
+    """
+    try:
+        data = request.get_json()
+        print(f"\n📥 Train request received: {list(data.keys())}")
+
+        # ── استخراج البيانات ──
+        exp_dir    = data.get('exp_dir1')
+        audio_url  = data.get('trainset_dir4')
+        user_id    = data.get('user_id')
+        sr_raw     = data.get('sr2', 40000)
+        if_f0      = data.get('if_f0_3', True)
+        n_p        = int(data.get('np7', 2))
+        f0method   = data.get('f0method8', 'rmvpe_gpu')
+        version19  = data.get('version19', 'v2')
+        gpus       = str(data.get('gpus16', 0))
+        gpus_rmvpe = str(data.get('gpus_rmvpe', 0))
+
+        if not all([exp_dir, audio_url, user_id]):
+            return jsonify({"success": False,
+                            "error": "Missing: exp_dir1, trainset_dir4, user_id"}), 400
+
+        sr_key = '40k' if sr_raw == 40000 else ('48k' if sr_raw == 48000 else '32k')
+
+        # ── STEP 0: تحميل الصوت ──
+        user_audio_dir = f"{now_dir}/dataset/{user_id}/{exp_dir}"
+        os.makedirs(user_audio_dir, exist_ok=True)
+
+        print(f"\n📥 [STEP 0] Downloading audio from Firebase...")
+        audio_response = req.get(audio_url, timeout=120)
+        if audio_response.status_code != 200:
+            return jsonify({"success": False,
+                            "error": f"Audio download failed: HTTP {audio_response.status_code}"}), 400
+
+        audio_path = f"{user_audio_dir}/audio.wav"
+        with open(audio_path, 'wb') as f:
+            f.write(audio_response.content)
+        size_mb = len(audio_response.content) / (1024 * 1024)
+        print(f"✅ Audio saved: {size_mb:.2f} MB → {audio_path}")
+
+        # ── STEP 1: Preprocess ──
+        print(f"\n🔄 [STEP 1] Preprocessing...")
+        preprocess_log = preprocess_dataset(user_audio_dir, exp_dir, sr_key, n_p)
+        print(f"✅ Preprocess complete")
+
+        # ── STEP 2: Extract F0 + Features ──
+        print(f"\n🔄 [STEP 2] Extracting F0 & features...")
+        extract_log = extract_f0_feature(
+            gpus=gpus,
+            n_p=n_p,
+            f0method=f0method,
+            if_f0=if_f0,
+            exp_dir=exp_dir,
+            version19=version19,
+            gpus_rmvpe=gpus_rmvpe,
+        )
+        print(f"✅ Extraction complete")
+
+        return jsonify({
+            "success": True,
+            "message": "Preprocessing & feature extraction completed",
+            "data": {
+                "exp_dir":       exp_dir,
+                "user_id":       user_id,
+                "audio_path":    audio_path,
+                "sample_rate":   sr_key,
+                "preprocess_log": preprocess_log[-1000:],
+                "extract_log":   extract_log[-1000:],
+            }
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@colab_app.route('/convert', methods=['POST'])
+def handle_convert():
+    try:
+        data = request.get_json()
+        print(f"\n📥 Convert request: {list(data.keys())}")
+
+        # استخراج المعاملات
+        sid          = int(data.get('spk_item', 0))
+        input_audio  = data.get('input_audio0')
+        vc_transform = int(data.get('vc_transform0', 0))
+        f0_file      = data.get('f0_file', None)
+        f0method     = data.get('f0method0', 'rmvpe')
+        file_index2  = data.get('file_index2', '')
+        index_rate   = float(data.get('index_rate1', 0.0))  # ✅ تعيين 0 لتعطيل index
+        filter_radius= int(data.get('filter_radius0', 3))
+        resample_sr  = int(data.get('resample_sr0', 0))
+        rms_mix_rate = float(data.get('rms_mix_rate0', 0.25))
+        protect      = float(data.get('protect0', 0.33))
+        user_id      = data.get('user_id')
+
+        if not input_audio:
+            return jsonify({"success": False,
+                            "error": "input_audio0 is required"}), 400
+
+        print(f"🎤 Model path: {file_index2}")
+
+        # تحميل الصوت إذا كان URL
+        if input_audio.startswith('http'):
+            print(f"📥 Downloading input audio...")
+            audio_dir = f"{now_dir}/temp_convert/{user_id}"
+            os.makedirs(audio_dir, exist_ok=True)
+            
+            audio_response = req.get(input_audio, timeout=60)
+            if audio_response.status_code != 200:
+                return jsonify({"success": False,
+                                "error": f"Audio download failed: {audio_response.status_code}"}), 400
+            
+            local_audio_path = f"{audio_dir}/input.wav"
+            with open(local_audio_path, 'wb') as f:
+                f.write(audio_response.content)
+            print(f"✅ Audio saved: {local_audio_path}")
+        else:
+            local_audio_path = input_audio
+
+        # ✅ تحميل النموذج من file_index2
+        from infer.modules.vc.modules import VC
+        from configs.config import Config
+
+        config = Config()
+        vc = VC(config)
+
+        # استخراج اسم الصوت من المسار
+        voice_name = file_index2.split('/')[-1].replace('.pth', '') if file_index2 else None
+        
+        if voice_name:
+            print(f"🔄 Loading voice model: {voice_name}")
+            vc.get_vc(voice_name)
+
+        # ✅ تنفيذ التحويل بدون index
+        info, output_audio = vc.vc_single(
+            sid,
+            local_audio_path,
+            vc_transform,
+            f0_file,
+            f0method,
+            "",              # ✅ file_index1 فارغ
+            file_index2,     # ✅ اسم النموذج
+            0.0,             # ✅ index_rate = 0 لتعطيل index
+            filter_radius,
+            resample_sr,
+            rms_mix_rate,
+            protect,
+        )
+
+        print(f"✅ Convert done: {info}")
+        print(f"   Output: {output_audio}")
+
+        # ✅ رفع الملف الناتج إلى Firebase Storage
+        output_url = None
+        if output_audio and os.path.exists(output_audio):
+            try:
+                # يمكنك إضافة كود رفع الملف هنا إذا أردت
+                # مثلاً باستخدام Firebase Admin SDK
+                output_url = output_audio  # مؤقتاً: مسار محلي
+            except Exception as e:
+                print(f"⚠️ Could not upload output: {e}")
+
+        return jsonify({
+            "success": True,
+            "message": "Conversion completed",
+            "data": {
+                "info": info,
+                "output_path": output_audio,
+                "output_url": output_url,
+                "user_id": user_id,
+            }
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ============================================================
+# CELL 5B - تشغيل Flask Server
+# ============================================================
+
+def run_flask():
+    colab_app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+flask_thread = threading.Thread(target=run_flask, daemon=True)
+flask_thread.start()
+
+print("⏳ Starting Flask server...")
+time.sleep(3)
+
+try:
+    r = req.get("http://localhost:5000/health", timeout=5)
+    print(f"✅ Flask started successfully: {r.json()}")
+    print(f"\n📋 Available endpoints:")
+    print(f"   GET  /health     - health check")
+    print(f"   POST /preprocess - process audio from local path")
+    print(f"   POST /train      - download from Firebase + process")
+except Exception as e:
+    print(f"⚠️ Flask check failed: {e}")
+
+# ============================================================
+# CELL 6 - تشغيل ngrok وإرسال الرابط للسيرفر (محدّث نهائي)
+# ============================================================
+
+import time
+
+# 🔑 أدخل ngrok token من https://dashboard.ngrok.com
+NGROK_TOKEN = "39V1fI2jk8Qgd5WjhltLWcd7mPU_6RvYFiFgJEew7Mc8d5zzx"  # ⚠️ غيّر التوكن القديم!
+
+ngrok.set_auth_token(NGROK_TOKEN)
+
+print("⏳ فتح نفق ngrok...")
+public_url = ngrok.connect(5000).public_url
+print(f"🌐 Colab public URL: {public_url}")
+
+# الانتظار لضمان جاهزية ngrok
+time.sleep(3)
+
+# التحقق من عمل ngrok
+try:
+    ngrok_test = req.get(f"{public_url}/health", timeout=10)
+    print(f"✅ ngrok tunnel is working: {ngrok_test.json()}")
+except Exception as e:
+    print(f"⚠️ Could not verify ngrok: {e}")
+
+# إرسال الرابط لسيرفر Flask الرئيسي - مع إعادة المحاولة
+registration_success = False
+max_retries = 5  # زيادة عدد المحاولات
+
+for attempt in range(1, max_retries + 1):
+    try:
+        print(f"\n📡 محاولة التسجيل ({attempt}/{max_retries})...")
+        
+        response = req.post(
+            f"{FLASK_SERVER_URL}/api/register-colab",
+            json={"colab_url": public_url},
+            timeout=15
+        )
+        
+        response_data = response.json()
+        
+        if response.status_code == 200 and response_data.get('success'):
+            registration_success = True
+            print(f"✅ تم التسجيل بنجاح!")
+            print(f"   Response: {response_data}")
+            break
+        else:
+            print(f"⚠️ فشل التسجيل: {response.status_code}")
+            if attempt < max_retries:
+                print(f"   سأحاول مرة أخرى بعد 3 ثوانٍ...")
+                time.sleep(3)
+            
+    except Exception as e:
+        print(f"❌ خطأ: {e}")
+        if attempt < max_retries:
+            print(f"   سأحاول مرة أخرى بعد 3 ثوانٍ...")
+            time.sleep(3)
+
+# التحقق النهائي
+if registration_success:
+    print("\n" + "="*60)
+    print("✅ النظام جاهز بالكامل!")
+    print(f"   🌐 Public URL: {public_url}")
+    print(f"   🔗 Connected to: {FLASK_SERVER_URL}")
+    print("="*60)
+    
+    # اختبار نهائي من السيرفر
+    print("\n🧪 اختبار الاتصال من السيرفر...")
+    try:
+        test = req.get(f"{FLASK_SERVER_URL}/api/test-colab-connection", timeout=10)
+        test_data = test.json()
+        if test_data.get('success'):
+            print("✅ السيرفر يمكنه الوصول لـ Colab بنجاح!")
+        else:
+            print(f"⚠️ السيرفر لا يمكنه الوصول: {test_data}")
+    except Exception as e:
+        print(f"⚠️ لم أستطع اختبار الاتصال: {e}")
+else:
+    print("\n⚠️ فشل التسجيل!")
+    print(f"   يمكنك التسجيل يدوياً:")
+    print(f"   POST {FLASK_SERVER_URL}/api/register-colab")
+    print(f"   Body: {{'colab_url': '{public_url}'}}")
+
+# ============================================================
+# CELL 7 - اختبار الاتصال (TEST)
+# ============================================================
+
+import requests
+import json
+
+print("🧪 اختبار الاتصال بين السيرفر و Colab")
+print("="*50)
+
+# 1. اختبار صحة Flask داخل Colab
+print("\n1️⃣ اختبار Flask المحلي في Colab:")
+try:
+    local_response = requests.get("http://localhost:5000/health", timeout=5)
+    print(f"   ✅ Flask يعمل: {local_response.json()}")
+except Exception as e:
+    print(f"   ❌ Flask لا يعمل: {e}")
+
+# 2. اختبار ngrok URL
+print("\n2️⃣ اختبار ngrok URL:")
+try:
+    ngrok_response = requests.get(f"{public_url}/health", timeout=5)
+    print(f"   ✅ ngrok يعمل: {ngrok_response.json()}")
+    print(f"   🌐 الرابط العام: {public_url}")
+except Exception as e:
+    print(f"   ❌ ngrok لا يعمل: {e}")
+
+# 3. اختبار التسجيل مع السيرفر الرئيسي
+print("\n3️⃣ اختبار الاتصال مع السيرفر الرئيسي:")
+try:
+    server_response = requests.get(f"{FLASK_SERVER_URL}/", timeout=10)
+    server_data = server_response.json()
+    print(f"   ✅ السيرفر يعمل: {server_data.get('message')}")
+    print(f"   🔗 Colab متصل: {server_data.get('colab_connected')}")
+except Exception as e:
+    print(f"   ❌ لا يمكن الوصول للسيرفر: {e}")
+
+# 4. اختبار endpoint /preprocess بشكل يدوي
+print("\n4️⃣ اختبار /preprocess مباشرة:")
+test_payload = {
+    "trainset_dir": "/content/test",
+    "exp_dir": "test_model",
+    "sr": "40k",
+    "n_p": 2
+}
+
+try:
+    preprocess_response = requests.post(
+        f"{public_url}/train",
+        json=test_payload,
+        timeout=10
+    )
+    print(f"   📨 استجابة /train: {preprocess_response.status_code}")
+    print(f"   📋 البيانات: {preprocess_response.json()}")
+except Exception as e:
+    print(f"   ❌ خطأ في /train: {e}")
+
+print("\n" + "="*50)
+print("✅ انتهى الاختبار!")
