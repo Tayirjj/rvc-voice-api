@@ -261,7 +261,7 @@ def preprocess():
         )
 
         preprocess_data = response.json()
-        print(f"colab_response : {preprocess_data.status_code}")
+        print(f"colab_response : {preprocess_data}")
         
         
         if db:
