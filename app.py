@@ -239,6 +239,8 @@ def disconnect_colab():
 @app.route('/api/preprocess' , methods = ['POST'])
 def preprocess():
     try:
+        if not COLAB_URL:
+            return jsonify({"error": "Colab is not connected. Please run Colab first."}), 503
         data = request.get_json()
         user_id = data.get('user_id')
         audio_base64 = data.get('trainset_dir')
