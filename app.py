@@ -241,12 +241,14 @@ def preprocess():
         data = request.get_json()
         user_id = data.get('user_id')
         doc_data = {
-            "audio_durl" : data.get('trainset_dir'),
+            "audio_base64" : data.get('trainset_dir'),
             "exp_dir" : data.get('exp_dir1'),
             "sr" : data.get('sr'),
             "n_p" : data.get('n_p'),
             "user_id" : data.get('user_id'),
         }
+
+        audio_bytes = base64.b64decode(audio_base64)
 
         response = requests.post(
             f"{COLAB_URL}/preprocess",
@@ -268,6 +270,8 @@ def preprocess():
 
     except Exception as d:
         print(f"Error is {d}")
+        
+
         
 
     
