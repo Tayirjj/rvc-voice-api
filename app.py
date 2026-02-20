@@ -254,14 +254,14 @@ def preprocess():
 
         
         
-        '''response = requests.post(
+        response = requests.post(
             f"{COLAB_URL}/preprocess",
             json = doc_data,
             timeout = 120
         )
 
         preprocess_data = response.json()
-        '''
+        
         
         if db:
             try:
@@ -270,7 +270,7 @@ def preprocess():
             except Exception as f:
                 print('training_voices is not created in firebase')
 
-        '''return jsonify(preprocess_data),200'''
+        return jsonify(preprocess_data),200
 
     except Exception as d:
         print(f"Error is {d}")
