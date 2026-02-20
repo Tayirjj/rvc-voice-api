@@ -235,123 +235,32 @@ def disconnect_colab():
 # RVC Processing Routes
 # ============================================
 
-@app.route('/api/preprocess', methods=['POST'])
+@app.route('/api/preprocess' , methods = ['POST'])
 def preprocess():
-    """
-    معالجة ملفات الصوت قبل التدريب
-    يرسل الطلب إلى Colab
-    
-    Expected payload:
-    {
-        "trainset_dir": "/path/to/audio/files",
-        "exp_dir": "model_name",
-        "sr": "40k",  // optional: 32k, 40k, 48k
-        "n_p": 2,     // optional: number of parallel processes
-        "user_id": "user_123"
-    }
-    """
-    global COLAB_URL
-    
     try:
         data = request.get_json()
-        print(f"\n📥 Preprocess request received:")
-        print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
+        doc_data = {
+            "audio_durl" : data.get('trainset_dir')
+            "exp_dir" : data.get('exp_dir1')
+            "sr" : data.get('sr')
+            "n_p" : data.get('n_p')
+            "user_id" : data.get('user_id')
+        }
 
-        # استخراج البيانات المطلوبة
-        trainset_dir = data.get('trainset_dir')
-        exp_dir      = data.get('exp_dir')
-        sr           = data.get('sr', '40k')
-        n_p          = data.get('n_p', 2)
-        user_id      = data.get('user_id')
-
-        # التحقق من البيانات الأساسية
-        if not all([trainset_dir, exp_dir, user_id]):
-            return jsonify({
-                "success": False,
-                "error": "Missing required fields: trainset_dir, exp_dir, user_id"
-            }), 400
-
-        # التحقق من اتصال Colab
-        if not COLAB_URL:
-            return jsonify({
-                "success": False,
-                "error": "Colab is not connected. Please run the Colab notebook first.",
-                "hint": "Run all cells in the Colab notebook and wait for 'Colab is ready' message"
-            }), 503
-
-        # إعداد البيانات للإرسال إلى Colab
-        colab_payload = data
-
-        print(f"📤 Sending to Colab: {COLAB_URL}/preprocess")
-        print(f"   Payload: {json.dumps(colab_payload, indent=2)}")
-        
-        # إرسال الطلب إلى Colab
-        colab_response = requests.post(
+        response = requests.post(
             f"{COLAB_URL}/preprocess",
-            json=colab_payload,
-            timeout=300  # 5 دقائق كحد أقصى
+            json = doc_data,
+            timeout = 120
         )
 
-        colab_data = colab_response.json()
-        print(f"📨 Colab response ({colab_response.status_code}):")
-        print(f"   {json.dumps(colab_data, indent=2, ensure_ascii=False)}")
-
-        # حفظ النتيجة في Firestore
+        preprocess_data = response.json()
+        
         if db:
             try:
-                doc_data = {
-                    "userId":       user_id,
-                    "exp_dir":      exp_dir,
-                    "trainset_dir": trainset_dir,
-                    "sr":           sr,
-                    "n_p":          int(n_p),
-                    "status":       "preprocessed" if colab_data.get("success") else "failed",
-                    "colab_result": colab_data,
-                    "updatedAt":    firestore.SERVER_TIMESTAMP,
-                    "processedAt":  datetime.now().isoformat()
-                }
-                
-                db.collection('exp_dir').document(user_id)\
-                  .collection('voices').document(exp_dir)\
-                  .set(doc_data, merge=True)
-                  
-                print("✅ Saved to Firestore")
-            except Exception as db_error:
-                print(f"❌ Firestore error: {db_error}")
-
-        # إرجاع النتيجة للعميل
-        return jsonify({
-            "success": colab_data.get("success", False),
-            "message": "Preprocessing request sent to Colab",
-            "data": colab_data,
-            "timestamp": datetime.now().isoformat()
-        }), colab_response.status_code
-
-    except requests.exceptions.Timeout:
-        error_msg = "Colab request timed out (>5 minutes). The preprocessing may still be running."
-        print(f"⏱️ {error_msg}")
-        return jsonify({
-            "success": False,
-            "error": error_msg
-        }), 504
-
-    except requests.exceptions.ConnectionError as e:
-        error_msg = "Cannot connect to Colab. The ngrok tunnel may have expired."
-        print(f"❌ {error_msg}: {e}")
-        return jsonify({
-            "success": False,
-            "error": error_msg,
-            "hint": "Please restart the Colab notebook and wait for the new ngrok URL"
-        }), 503
-
-    except Exception as e:
-        print(f"❌ Unexpected error in preprocess: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+                db.collection('training_voices').document(user_id).set(doc_data , merge = True)
+                print('training_voices is created sucessfull')
+            except exception as f:
+                print('training_voices is not created in firebase')
 
 
 @app.route('/api/train', methods=['POST'])
