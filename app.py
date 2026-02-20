@@ -277,7 +277,7 @@ def preprocess():
 
     except Exception as d:
         print(f"Error is {d}")
-        return jsonify({"error": str(d)}), 500
+        return jsonify({"error_farouk": str(d)}), 500
     
 
 
