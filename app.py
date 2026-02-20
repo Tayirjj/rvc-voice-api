@@ -239,12 +239,13 @@ def disconnect_colab():
 def preprocess():
     try:
         data = request.get_json()
+        user_id = data.get_json()
         doc_data = {
-            "audio_durl" : data.get('trainset_dir')
-            "exp_dir" : data.get('exp_dir1')
-            "sr" : data.get('sr')
-            "n_p" : data.get('n_p')
-            "user_id" : data.get('user_id')
+            "audio_durl" : data.get('trainset_dir'),
+            "exp_dir" : data.get('exp_dir1'),
+            "sr" : data.get('sr'),
+            "n_p" : data.get('n_p'),
+            "user_id" : data.get('user_id'),
         }
 
         response = requests.post(
@@ -254,13 +255,17 @@ def preprocess():
         )
 
         preprocess_data = response.json()
+        return jsonify(preprocess_data),200
         
         if db:
             try:
                 db.collection('training_voices').document(user_id).set(doc_data , merge = True)
                 print('training_voices is created sucessfull')
-            except exception as f:
+            except Exception as f:
                 print('training_voices is not created in firebase')
+
+    except Exception as d:
+        print(f"Error is {d}")
 
 
 @app.route('/api/train', methods=['POST'])
