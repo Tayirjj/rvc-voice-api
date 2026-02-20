@@ -253,15 +253,15 @@ def preprocess():
         }
 
         
-
-        response = requests.post(
+        
+        '''response = requests.post(
             f"{COLAB_URL}/preprocess",
             json = doc_data,
             timeout = 120
         )
 
         preprocess_data = response.json()
-        
+        '''
         
         if db:
             try:
@@ -274,13 +274,6 @@ def preprocess():
 
     except Exception as d:
         print(f"Error is {d}")
-        
-
-    
-        
-
-        
-
     
 
 
