@@ -6,6 +6,7 @@ import os
 import json
 import requests
 from datetime import datetime
+import base64
 
 app = Flask(__name__)
 CORS(app)
