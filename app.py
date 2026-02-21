@@ -271,7 +271,7 @@ def preprocess():
         
         if db:
             try:
-                db.collection('training_voices').document(user_id).collection(exp_dir).add(doc_data)
+                db.collection('training_voices').document(user_id).collection(exp_dir).document('data').add(doc_data)
                 print('training_voices is created sucessfull')
             except Exception as f:
                 return jsonify(f'error : {f}')
@@ -299,7 +299,11 @@ def add_to_favorite():
 
         if db:
             try:
-                db.collection('training_voices').document(user_id).collection(exp_dir).update({"is_favorite" : is_favorite})
+                db.collection('training_voices')\
+                .document(user_id)\
+                .collection(exp_dir)\
+                .document('data')\  # ← أضف document هنا
+                .update({"is_favorite": is_favorite})
                 return jsonify({"messege" : "add to favorite is sucessfull" , "status" : "True"})
             except Exception as f:
                 return jsonify(f"messege : add to favorite is Error : {f}")
