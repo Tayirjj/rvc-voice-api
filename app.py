@@ -252,6 +252,7 @@ def preprocess():
             "sr" : data.get('sr'),
             "n_p" : data.get('n_p'),
             "user_id" : data.get('user_id'),
+            "is_favorite" : data.get('is_favorite')
         }
 
         
