@@ -257,8 +257,12 @@ def preprocess():
             "is_favorite" : data.get('is_favorite'),
             
         }
-
         
+        required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite"]
+        missing_field = [field for field in required_field if not doc_data.get(field)]
+        if missing_field:
+            return jsonify("doc_data is not found")
+
         
         response = requests.post(
             f"{COLAB_URL}/preprocess",
