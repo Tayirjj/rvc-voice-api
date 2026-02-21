@@ -263,7 +263,7 @@ def preprocess():
             'gpus_rmvpe' : data.get("gpus_rmvpe")
         }
         required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite" , "gpus" ,"f0method" , "if_f0" , "version19" , "gpus_rmvpe"]
-        missing_field = [field for field in required_field if not doc_data.get(field)]
+        missing_field = [field for field in required_field if doc_data.get(field) is None]
         if missing_field:
             return jsonify(f"doc_data is not found is {missing_field}")
 
