@@ -244,6 +244,7 @@ def preprocess():
         data = request.get_json()
         user_id = data.get('user_id')
         audio_base64 = data.get('trainset_dir')
+        exp_dir = data.get('exp_dir1')
         audio_bytes = base64.b64decode(audio_base64)
 
         doc_data = {
