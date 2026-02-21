@@ -254,7 +254,12 @@ def preprocess():
             "sr" : data.get('sr'),
             "n_p" : data.get('n_p'),
             "user_id" : data.get('user_id'),
-            "is_favorite" : data.get('is_favorite')
+            "is_favorite" : data.get('is_favorite'),
+            'gpus' : data.get("gpus16"),
+            'f0method' : data.get("f0method8"),
+            'if_f0' : data.get("if_f0_3"),
+            'version19' : data.get("version19"),
+            'gpus_rmvpe' : data.get("gpus_rmvpe")
         }
 
         
