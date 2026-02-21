@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import firebase_admin
@@ -255,14 +256,18 @@ def preprocess():
             "n_p" : data.get('n_p'),
             "user_id" : data.get('user_id'),
             "is_favorite" : data.get('is_favorite'),
-            
+            'gpus' : data.get("gpus16"),
+            'f0method' : data.get("f0method8"),
+            'if_f0' : data.get("if_f0_3"),
+            'version19' : data.get("version19"),
+            'gpus_rmvpe' : data.get("gpus_rmvpe")
         }
-        
-        required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite"]
+        required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite" , "gpus" ,"f0method" , "if_f0" , "version19" , "gpus_rmvpe"]
         missing_field = [field for field in required_field if not doc_data.get(field)]
         if missing_field:
             return jsonify("doc_data is not found")
 
+        
         
         response = requests.post(
             f"{COLAB_URL}/preprocess",
