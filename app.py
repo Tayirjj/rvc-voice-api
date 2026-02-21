@@ -271,7 +271,8 @@ def preprocess():
         
         if db:
             try:
-                db.collection('training_voices').document(user_id).collection(exp_dir).set(doc_data , merge = True)
+                document_id = f"{user_id}_{exp_dir}"
+                db.collection('training_voices').document(document_id).set(doc_data , merge = True)
                 print('training_voices is created sucessfull')
             except Exception as f:
                 return jsonify(f'error : {f}')
@@ -285,6 +286,8 @@ def preprocess():
         return jsonify({"error_farouk": str(d)}), 500
 
 
+
+
 @app.route('/api/add_to_favorite' , methods = ['POST'])
 def add_to_favorite():
     try:
@@ -295,14 +298,14 @@ def add_to_favorite():
 
         if db:
             try:
-                db.collection("training_voices").document("user_id").collection(exp_dir).add({"is_favorite" : is_favorite})
+                document_id = f"{user_id}_{exp_dir}"
+                db.collection("training_voices").document(document_id).add({"is_favorite" : is_favorite})
                 return jsonify({"messege" : "add to favorite is sucessfull" , "status" : "True"})
             except Exception as f:
                 return jsonify({"messege" : "add to favorite is Error" , "status" : "False"})
 
     except Exception as d:
         print(f'error:{d}')
-
 
     
 
