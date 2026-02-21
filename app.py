@@ -272,7 +272,7 @@ def preprocess():
         response = requests.post(
             f"{COLAB_URL}/preprocess",
             json = doc_data,
-            timeout = 120
+            timeout = 800
         )
 
         preprocess_data = response.json()
