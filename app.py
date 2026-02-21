@@ -302,7 +302,7 @@ def add_to_favorite():
                 db.collection('training_voices')\
                 .document(user_id)\
                 .collection(exp_dir)\
-                .document('data')\  # ← أضف document هنا
+                .document('data')\
                 .update({"is_favorite": is_favorite})
                 return jsonify({"messege" : "add to favorite is sucessfull" , "status" : "True"})
             except Exception as f:
