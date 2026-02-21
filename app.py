@@ -274,16 +274,15 @@ def preprocess():
                 db.collection('training_voices').document(user_id).collection(exp_dir).set(doc_data , merge = True)
                 print('training_voices is created sucessfull')
             except Exception as f:
-                return json(f'error : {f}')
+                return jsonify(f'error : {f}')
                 print('training_voices is not created in firebase')
-                print(audio_bytes)
+               
 
         return jsonify({**preprocess_data , "every_thing": "ok"}),200
 
     except Exception as d:
         print(f"Error is {d}")
         return jsonify({"error_farouk": str(d)}), 500
-
 
 
 @app.route('/api/add_to_favorite' , methods = ['POST'])
