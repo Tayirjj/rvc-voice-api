@@ -246,6 +246,7 @@ def preprocess():
         audio_base64 = data.get('trainset_dir')
         exp_dir = data.get('exp_dir1')
         audio_bytes = base64.b64decode(audio_base64)
+        
 
         doc_data = {
             "audio_base64" : audio_base64,
@@ -273,7 +274,9 @@ def preprocess():
                 db.collection('training_voices').document(user_id).collection(exp_dir).set(doc_data , merge = True)
                 print('training_voices is created sucessfull')
             except Exception as f:
+                return json(f'error : {f}')
                 print('training_voices is not created in firebase')
+                print(audio_bytes)
 
         return jsonify({**preprocess_data , "every_thing": "ok"}),200
 
