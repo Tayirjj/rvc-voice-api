@@ -271,8 +271,7 @@ def preprocess():
         
         if db:
             try:
-                document_id = f"{user_id}_{exp_dir}"
-                db.collection('training_voices').document(document_id).set(doc_data , merge = True)
+                db.collection('training_voices').document(user_id).collection(exp_dir).add(doc_data)
                 print('training_voices is created sucessfull')
             except Exception as f:
                 return jsonify(f'error : {f}')
