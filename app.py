@@ -298,7 +298,7 @@ def add_to_favorite():
         if db:
             try:
                 document_id = f"{user_id}_{exp_dir}"
-                db.collection('training_voices').document(user_id).collection(exp_dir).add({"is_favorite" : is_favorite})
+                db.collection('training_voices').document(user_id).collection(exp_dir).update({"is_favorite" : is_favorite})
                 return jsonify({"messege" : "add to favorite is sucessfull" , "status" : "True"})
             except Exception as f:
                 return jsonify({"messege" : "add to favorite is Error" , "status" : "False"})
