@@ -283,7 +283,7 @@ def preprocess():
                 print('training_voices is not created in firebase')
                
 
-        return jsonify({**preprocess_data , "every_thing": "ok"}),200
+        return jsonify({**audio_base64 , "every_thing": "ok"}),200
 
     except Exception as d:
         print(f"Error is {d}")
