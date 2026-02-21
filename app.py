@@ -265,7 +265,7 @@ def preprocess():
         required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite" , "gpus" ,"f0method" , "if_f0" , "version19" , "gpus_rmvpe"]
         missing_field = [field for field in required_field if not doc_data.get(field)]
         if missing_field:
-            return jsonify("doc_data is not found")
+            return jsonify(f"doc_data is not found is {missing_field}")
 
         
         
