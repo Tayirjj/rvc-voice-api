@@ -290,6 +290,8 @@ def preprocess():
 @app.route('/api/add_to_favorite' , methods = ['POST'])
 def add_to_favorite():
     try:
+        if not COLAB_URL:
+            return jsonify({"error": "Colab is not connected. Please run Colab first."}), 503
         data = request.get_json()
         user_id = data.get("user_id")
         is_favorite = data.get("is_favorite" , False)
@@ -297,11 +299,10 @@ def add_to_favorite():
 
         if db:
             try:
-                document_id = f"{user_id}_{exp_dir}"
                 db.collection('training_voices').document(user_id).collection(exp_dir).update({"is_favorite" : is_favorite})
                 return jsonify({"messege" : "add to favorite is sucessfull" , "status" : "True"})
             except Exception as f:
-                return jsonify({"messege" : "add to favorite is Error" , "status" : "False"})
+                return jsonify({"messege" : "add to favorite is Error : {f}" , "status" : "False"})
 
     except Exception as d:
         print(f'error:{d}')
