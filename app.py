@@ -8,6 +8,7 @@ import json
 import requests
 from datetime import datetime
 import base64
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 CORS(app)
@@ -272,7 +273,8 @@ def preprocess():
         response = requests.post(
             f"{COLAB_URL}/preprocess",
             json = doc_data,
-            timeout = 800
+            timeout=(10, 900), 
+            stream=True
         )
 
         preprocess_data = response.json()
