@@ -261,7 +261,16 @@ def preprocess():
             'f0method' : data.get("f0method8"),
             'if_f0' : data.get("if_f0_3"),
             'version19' : data.get("version19"),
-            'gpus_rmvpe' : data.get("gpus_rmvpe")
+            'gpus_rmvpe' : data.get("gpus_rmvpe"),
+            'spk_id5':data.get("spk_id5"),
+            'save_epoch10':data.get("save_epoch10"),
+            'total_epoch11':data.get("total_epoch11"),
+            'batch_size12':data.get("batch_size12"),
+            'if_save_latest13':data.get("if_save_latest13"),
+            'pretrained_G14':data.get("pretrained_G14"),
+            'pretrained_D15':data.get("pretrained_D15"),
+            'if_cache_gpu17':data.get("if_cache_gpu17"),
+            'if_save_every_weights18':data.get("if_save_every_weights18")
         }
         required_field = ["audio_base64" , "exp_dir" , "sr" , "n_p" , "user_id" , "is_favorite" , "gpus" ,"f0method" , "if_f0" , "version19" , "gpus_rmvpe"]
         missing_field = [field for field in required_field if doc_data.get(field) is None]
