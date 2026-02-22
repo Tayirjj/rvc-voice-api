@@ -273,23 +273,22 @@ def preprocess():
         response = requests.post(
             f"{COLAB_URL}/preprocess",
             json = doc_data,
-            timeout=(10, 900), 
-            stream=True
+            timeout = 800
         )
 
         preprocess_data = response.json()
         print(f"colab_response : {preprocess_data}")
         
-        
-        if db:
+        def save_to_firebase():
             try:
-                db.collection('training_voices').document(user_id).collection(exp_dir).document('data').set(doc_data , merge = True)
-                print('training_voices is created sucessfull')
+                if db:
+                    db.collection('training_voices').document(user_id).collection(exp_dir).document('data').set(doc_data , merge = True)
+                    print('training_voices is created sucessfull')
             except Exception as f:
                 return jsonify(f'error : {f}')
                 print('training_voices is not created in firebase')
-               
 
+        threading.Thread(target=save_to_firebase, daemon=True).start()
         return jsonify({**preprocess_data , "every_thing": "ok"}),200
 
     except Exception as d:
